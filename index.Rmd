@@ -1,0 +1,70 @@
+---
+title: "Predicting quality of dumbbell biceps curl"
+author: "Kantapon Dissaneewate"
+date: "10/9/2564"
+output: html_document
+---
+
+## Executive summary
+
+Using data from Human Activity Research - Weight Lifting Exercises Data set from <http:/groupware.les.inf.puc-rio.br/har.>. I developed a machine learning algorithm using random forest method, cross-validated by using 5-fold cross validation method and found accuracy to be 0.995, with 27 predictor. Validation with test data set not used in tuning algorithm, The algorithm score 20/20 for the test data set.
+
+## Getting start
+
+Get started by loading required packages. I used tidyverse to clean the data and caret package to develop machine learning algorithm, then load test and train data set for analysis. Then set seed to 1 for reproducibility.
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+library(tidyverse)
+library(caret)
+pmltrain <- read.csv(file = 'pml-training.csv')
+pmltest <- read.csv(file = 'pml-testing.csv')
+set.seed(1)
+```
+
+After initial exploration of the data sets, I found that multiple variable were missing from both test and train set. I need to exclude those variable missing from the test data set as to not waste valuable processor resources.\
+I selected columns that were not in 'todel' then looked at the remaining variable and found that 'X', 'user_name', 'raw_timestamp_part_1', 'cvtd_timestamp', 'new_window' and 'num_window' are most likely irrelevant. Because I couldn't find a code book for the data set, I was skeptical to remove raw_timestamp_part_2 because I think that it is how much time passed since the first time stamp, which may indicate certain activities. Then I look at 'classe' variable, our outcomes and find it to be character type, so I mutate it into factor with 5 level: A B C D E\
+A being perfect form of dumbbell biceps curl and E being poorest form.
+
+```{r}
+str(pmltest)
+todel <- names(which(colSums(is.na(pmltest)) > 0))
+class(pmltrain$classe)
+pmltrain <- pmltrain %>%
+  select(-c(todel,'X','user_name','raw_timestamp_part_1','cvtd_timestamp',
+            'new_window','num_window')) %>%
+  mutate(classe = factor(classe))
+```
+
+I am now left with 53 predictors and 1 outcome variable.
+
+## Machine learning and Cross validation
+
+I plan to use Random forest method with 5-fold cross validation, even though Random forest kind of have a built in cross validation by bootstrap already. It doesn't hurt to do cross validation, which is easy to do using caret package.
+
+```{r}
+control <- trainControl(method = "cv", number = 5)
+RF <- train(classe~., method = 'rf', data = pmltrain, trControl = control)
+```
+
+After some processing, RStudio finished and I check the model, number of variable in the final model is 27 (mtry = 27) with accuracy of 0.9949 as oppose to mtry = 53 with accuracy of 0.9873 (shown below in a figure)
+
+```{r}
+RF
+plot(RF)
+```
+
+Then I evaluate the results for training set and found that the model correctly predict all 19622 observations
+
+```{r}
+testtrain <- predict(RF)
+results <- data.frame(indicator = pmltrain$classe, predict = testtrain)
+table(results$indicator, results$predict)
+```
+
+With such a promising results, I am now hopeful that this model will do well in the test set. I used the model to predict test set and put those results in the quiz for test set and got 20/20 perfect score.
+
+```{r}
+testresult <- predict(RF, newdata = pmltest)
+print(testresult)
+
+```
